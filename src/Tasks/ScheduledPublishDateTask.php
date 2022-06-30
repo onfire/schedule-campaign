@@ -21,14 +21,10 @@ class ScheduledPublishDateTask extends BuildTask
                         $set->publish();
                         $count++;
                     }
-
-                    echo 'time now ' . $now . ' | ' .  ' date saved to publish ' . $set->ScheduledPublishDate;
                 }
             }
         }
 
-
-
-        //echo $count . ' sets published';
+        echo $count . ' sets published on ' . $now;
     }
 }
