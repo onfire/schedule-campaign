@@ -1,0 +1,8 @@
+node_modules
+/vendor/
+.DS_Store
+/resources/
+composer.lock
+/app/
+/assets/
+/.idea
