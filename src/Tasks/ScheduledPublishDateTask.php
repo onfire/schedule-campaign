@@ -39,7 +39,7 @@ class ScheduledPublishDateTask extends BuildTask
             // Revert item, then close it
             foreach ($sets as $set) {
                 if ($set->State === 'published' && $set->EndPublishDate !== NULL) {
-                    if ($now >= $set->EndPublishDate) {
+                    if ($now <= $set->EndPublishDate) {
                         $set->revert();
                         $countReverted++;
                     }
