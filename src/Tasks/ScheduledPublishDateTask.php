@@ -9,22 +9,44 @@ class ScheduledPublishDateTask extends BuildTask
 {
     public function run($request)
     {
-        $count = 0;
+        $countPublished = 0;
+        $countReverted = 0;
+
         $now = date('Y-m-d');
 
         $sets = ChangeSet::get();
 
         if ($sets) {
+//            foreach ($sets as $set) {
+//                if ($set->State === 'open' && $set->ScheduledPublishDate !== NULL) {
+//                    if ($now >= $set->ScheduledPublishDate) {
+//                        $set->publish();
+//                        $count++;
+//                    }
+//                }
+//            }
+
+            // Publish item, then close it
             foreach ($sets as $set) {
-                if ($set->State === 'open' && $set->ScheduledPublishDate !== NULL) {
-                    if ($now >= $set->ScheduledPublishDate) {
+                if ($set->State === 'open' && $set->StartPublishDate !== NULL) {
+                    if ($now >= $set->StartPublishDate) {
                         $set->publish();
-                        $count++;
+                        $countPublished++;
+                    }
+                }
+            }
+
+            // Revert item, then close it
+            foreach ($sets as $set) {
+                if ($set->State === 'published' && $set->EndPublishDate !== NULL) {
+                    if ($now >= $set->EndPublishDate) {
+                        $set->revert();
+                        $countReverted++;
                     }
                 }
             }
         }
 
-        echo $count . ' sets published on ' . $now;
+        echo $countPublished . ' sets published | ' . $countReverted . ' sets reverted';
     }
 }

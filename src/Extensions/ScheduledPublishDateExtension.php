@@ -10,7 +10,8 @@ use SilverStripe\ORM\FieldType\DBDate;
 class ScheduledPublishDateExtension extends DataExtension
 {
     private static $db = [
-        'ScheduledPublishDate' => DBDate::class,
+        'StartPublishDate' => DBDate::class,
+        'EndPublishDate' => DBDate::class,
     ];
 
     /**
@@ -19,8 +20,13 @@ class ScheduledPublishDateExtension extends DataExtension
     public function updateCMSFields(FieldList $fields)
     {
         $fields->addFieldToTab('Root.Main', DateField::create(
-            'ScheduledPublishDate',
-            'Scheduled Publish Date'
+            'StartPublishDate',
+            'Start Publish Date'
+        ));
+
+        $fields->addFieldToTab('Root.Main', DateField::create(
+            'EndPublishDate',
+            'End Publish Date'
         ));
     }
 }
