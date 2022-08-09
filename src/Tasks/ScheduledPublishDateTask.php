@@ -10,8 +10,6 @@ class ScheduledPublishDateTask extends BuildTask
 {
     private static $segment = 'ScheduledCampaignsTask';
 
-    protected $description = 'A task run via cron job to publish campaigns and unpublished objects within a set timeframe';
-
     public function run($request)
     {
         $publishCount = 0;
@@ -26,6 +24,7 @@ class ScheduledPublishDateTask extends BuildTask
             foreach ($sets as $set) {
                 if ($set->State === 'open' && $set->StartPublishDate !== NULL) {
                     if ($now >= $set->StartPublishDate && $now < $set->EndPublishDate) {
+                        $set->sync();
                         $set->publish();
                         $publishCount++;
                     }
