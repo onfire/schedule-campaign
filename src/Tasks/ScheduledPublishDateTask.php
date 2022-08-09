@@ -46,6 +46,6 @@ class ScheduledPublishDateTask extends BuildTask
             }
         }
 
-        echo $publishCount . ' items published | ' . $unpublishedCount . ' objects set to draft';
+        echo $publishCount . ' campaigns published | ' . $unpublishedCount . ' campaign objects unpublished';
     }
 }
