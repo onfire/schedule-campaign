@@ -12,7 +12,7 @@ A basic silverstripe module to add a date to campaigns to be published at a futu
 
 ## Installation
 ```bash
-composer require
+
 ```
 
 ## Usage
@@ -25,4 +25,4 @@ Silverstripe\Versioned\ChangeSet:
 
 Then run `dev/build`
 
-Once module is installed setup a cron job to run a task daily at 1am, `ScheduledPublishDateTask: sake dev/tasks/ScheduledPublishDateTask`
+Once module is installed setup a cron job to run a task daily at 1am, `ScheduledPublishDateTask: sake dev/tasks/ScheduledCampaignsTask`
