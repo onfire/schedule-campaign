@@ -30,16 +30,20 @@ class ScheduledPublishDateTask extends BuildTask
                     }
                 } elseif ($set->State === 'published' && $set->EndPublishDate !== NULL) {
                     if ($now >= $set->EndPublishDate) {
-
-                        $set->State = 'open';
-                        $set->write();
-
                         $setItems = $items->filter(['ChangeSetID' => $set->ID]);
-
                         foreach($setItems as $setItem) {
-                            $setItem->Object()->doUnpublish();
+                            if(!$setItem->VersionBefore) {
+                                $setItem->Object()->doUnpublish();
+                            } else {
+                                $setItem->Object()->rollbackRecursive($setItem->VersionBefore);
+                                $setItem->Object()->doPublish();
+                            }
+
                             $unpublishedCount++;
                         }
+                        
+                        $set->State = ChangeSet::STATE_REVERTED;
+                        $set->write();
                     }
                 }
             }
