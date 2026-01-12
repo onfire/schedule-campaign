@@ -13,8 +13,8 @@ class ScheduledPublishDateTask extends BuildTask
 
     public function run($request)
     {
-        $publishCount = 0;
-        $unpublishedCount = 0;
+        $totalPublished = 0;
+        $totalUnpublished = 0;
 
         $now = time();
 
@@ -24,14 +24,24 @@ class ScheduledPublishDateTask extends BuildTask
             $start = $set->StartPublishDate ? strtotime($set->StartPublishDate) : null;
             $end   = $set->EndPublishDate ? strtotime($set->EndPublishDate) : null;
 
-            if ($set->State === ChangeSet::STATE_OPEN && $start) {
+            // Allow publishing for sets that are OPEN or REVERTED
+            if (($set->State === ChangeSet::STATE_OPEN || $set->State === ChangeSet::STATE_REVERTED) && $start) {
                 if ($this->isInPublishWindow($start, $end, $now)) {
                     $set->sync();
                     $set->publish();
-                    $publishCount++;
+                    $totalPublished++;
+
+                    // If it was reverted before, mark it as published
+                    if ($set->State === ChangeSet::STATE_REVERTED) {
+                        $set->State = ChangeSet::STATE_PUBLISHED;
+                        $set->write();
+                    }
                 }
-            } elseif ($set->State === ChangeSet::STATE_PUBLISHED && $end) {
-                $setItems = $set->Items(); // ORM relation, more efficient
+            }
+
+            // Handle unpublishing past the EndPublishDate
+            elseif ($set->State === ChangeSet::STATE_PUBLISHED && $end && $now >= $end) {
+                $setItems = $set->Items(); // ORM relation
 
                 foreach ($setItems as $setItem) {
                     $object = $setItem->Object();
@@ -48,21 +58,22 @@ class ScheduledPublishDateTask extends BuildTask
                         }
                     }
 
-                    $unpublishedCount++;
+                    $totalUnpublished++;
                 }
 
+                // Mark the ChangeSet as reverted
                 $set->State = ChangeSet::STATE_REVERTED;
                 $set->write();
             }
         }
 
-        $setName = $set->Title ?? "ID {$set->ID}";
-        $message = "Set '{$setName}': {$publishCount} published | {$unpublishedCount} unpublished";
+        // Logging & feedback
+        $message = "Campaigns published: {$totalPublished} | Campaign objects unpublished: {$totalUnpublished}";
 
         $logger = Injector::inst()->get(LoggerInterface::class);
         $logger->info($message);
 
-        echo $message;
+        echo $message . PHP_EOL;
     }
 
     /**
