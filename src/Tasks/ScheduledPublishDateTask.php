@@ -4,7 +4,8 @@ namespace Onfire\ScheduleCampaign\Tasks;
 
 use SilverStripe\Dev\BuildTask;
 use SilverStripe\Versioned\ChangeSet;
-use SilverStripe\Versioned\ChangeSetItem;
+use SilverStripe\Core\Injector\Injector;
+use Psr\Log\LoggerInterface;
 
 class ScheduledPublishDateTask extends BuildTask
 {
@@ -15,40 +16,63 @@ class ScheduledPublishDateTask extends BuildTask
         $publishCount = 0;
         $unpublishedCount = 0;
 
-        $now = date('Y-m-d');
+        $now = time();
 
         $sets = ChangeSet::get();
-        $items = ChangeSetItem::get();
 
-        if ($sets) {
-            foreach ($sets as $set) {
-                if ($set->State === 'open' && $set->StartPublishDate !== NULL) {
-                    if ($now >= $set->StartPublishDate && $now < $set->EndPublishDate) {
-                        $set->sync();
-                        $set->publish();
-                        $publishCount++;
-                    }
-                } elseif ($set->State === 'published' && $set->EndPublishDate !== NULL) {
-                    if ($now >= $set->EndPublishDate) {
-                        $setItems = $items->filter(['ChangeSetID' => $set->ID]);
-                        foreach($setItems as $setItem) {
-                            if(!$setItem->VersionBefore) {
-                                $setItem->Object()->doUnpublish();
-                            } else {
-                                $setItem->Object()->rollbackRecursive($setItem->VersionBefore);
-                                $setItem->Object()->doPublish();
-                            }
+        foreach ($sets as $set) {
+            $start = $set->StartPublishDate ? strtotime($set->StartPublishDate) : null;
+            $end   = $set->EndPublishDate ? strtotime($set->EndPublishDate) : null;
 
-                            $unpublishedCount++;
-                        }
-                        
-                        $set->State = ChangeSet::STATE_REVERTED;
-                        $set->write();
-                    }
+            if ($set->State === ChangeSet::STATE_OPEN && $start) {
+                if ($this->isInPublishWindow($start, $end, $now)) {
+                    $set->sync();
+                    $set->publish();
+                    $publishCount++;
                 }
+            } elseif ($set->State === ChangeSet::STATE_PUBLISHED && $end) {
+                $setItems = $set->Items(); // ORM relation, more efficient
+
+                foreach ($setItems as $setItem) {
+                    $object = $setItem->Object();
+                    if (!$object) {
+                        continue; // skip if object no longer exists
+                    }
+
+                    if (!$setItem->VersionBefore) {
+                        $object->doUnpublish();
+                    } else {
+                        $object->rollbackRecursive($setItem->VersionBefore);
+                        if ($object->exists()) {
+                            $object->doPublish();
+                        }
+                    }
+
+                    $unpublishedCount++;
+                }
+
+                $set->State = ChangeSet::STATE_REVERTED;
+                $set->write();
             }
         }
 
-        echo $publishCount . ' campaigns published | ' . $unpublishedCount . ' campaign objects unpublished';
+        $setName = $set->Title ?? "ID {$set->ID}";
+        $message = "Set '{$setName}': {$publishCount} published | {$unpublishedCount} unpublished";
+
+        $logger = Injector::inst()->get(LoggerInterface::class);
+        $logger->info($message);
+
+        echo $message;
+    }
+
+    /**
+     * Determine if the current time is within the publish window
+     */
+    protected function isInPublishWindow(?int $start, ?int $end, int $now): bool
+    {
+        $hasStarted = $start && $now >= $start;
+        $notEndedYet = !$end || $now < $end;
+
+        return $hasStarted && $notEndedYet;
     }
 }
