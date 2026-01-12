@@ -9,6 +9,11 @@
             "name": "Jason Loeve",
             "email": "jason@weareonfire.co.nz",
             "role": "Fullstack Developer"
+        },
+        {
+            "name": "Daniel Tate",
+            "email": "dan@tate.nz",
+            "role": "Senior Developer"
         }
     ],
     "require": {
@@ -21,5 +26,10 @@
     },
     "extra": {},
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "Onfire\\ScheduleCampaign\\": "src/"
+        }
+    }
 }
