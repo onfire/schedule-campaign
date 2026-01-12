@@ -6,6 +6,7 @@ use SilverStripe\Dev\BuildTask;
 use SilverStripe\Versioned\ChangeSet;
 use SilverStripe\Core\Injector\Injector;
 use Psr\Log\LoggerInterface;
+use SilverStripe\CMS\Model\SiteTree;
 
 class ScheduledPublishDateTask extends BuildTask
 {
@@ -13,8 +14,8 @@ class ScheduledPublishDateTask extends BuildTask
 
     public function run($request)
     {
-        $totalPublished = 0;
-        $totalUnpublished = 0;
+        $publishCount = 0;
+        $unpublishedCount = 0;
 
         $now = time();
 
@@ -24,56 +25,66 @@ class ScheduledPublishDateTask extends BuildTask
             $start = $set->StartPublishDate ? strtotime($set->StartPublishDate) : null;
             $end   = $set->EndPublishDate ? strtotime($set->EndPublishDate) : null;
 
-            // Allow publishing for sets that are OPEN or REVERTED
+            // Open or reverted sets that need publishing
             if (($set->State === ChangeSet::STATE_OPEN || $set->State === ChangeSet::STATE_REVERTED) && $start) {
                 if ($this->isInPublishWindow($start, $end, $now)) {
-                    $set->sync();
-                    $set->publish();
-                    $totalPublished++;
+                    $setItems = $set->Items();
+                    foreach ($setItems as $setItem) {
+                        $object = $setItem->Object();
+                        if (!$object) {
+                            continue;
+                        }
 
-                    // If it was reverted before, mark it as published
-                    if ($set->State === ChangeSet::STATE_REVERTED) {
-                        $set->State = ChangeSet::STATE_PUBLISHED;
-                        $set->write();
-                    }
-                }
-            }
-
-            // Handle unpublishing past the EndPublishDate
-            elseif ($set->State === ChangeSet::STATE_PUBLISHED && $end && $now >= $end) {
-                $setItems = $set->Items(); // ORM relation
-
-                foreach ($setItems as $setItem) {
-                    $object = $setItem->Object();
-                    if (!$object) {
-                        continue; // skip if object no longer exists
-                    }
-
-                    if (!$setItem->VersionBefore) {
-                        $object->doUnpublish();
-                    } else {
-                        $object->rollbackRecursive($setItem->VersionBefore);
-                        if ($object->exists()) {
+                        // Use recursive publish for SiteTree pages to include children
+                        if ($object instanceof SiteTree) {
+                            $object->publishRecursive();
+                        } else {
                             $object->doPublish();
                         }
+
+                        $publishCount++;
                     }
 
-                    $totalUnpublished++;
+                    $set->State = ChangeSet::STATE_PUBLISHED;
+                    $set->write();
                 }
+            }
+            // Already published sets that have ended — unpublish or rollback items
+            elseif ($set->State === ChangeSet::STATE_PUBLISHED && $end) {
+                if ($now >= $end) {
+                    $setItems = $set->Items();
+                    foreach ($setItems as $setItem) {
+                        $object = $setItem->Object();
+                        if (!$object) {
+                            continue;
+                        }
 
-                // Mark the ChangeSet as reverted
-                $set->State = ChangeSet::STATE_REVERTED;
-                $set->write();
+                        if (!$setItem->VersionBefore) {
+                            $object->doUnpublish();
+                        } else {
+                            $object->rollbackRecursive($setItem->VersionBefore);
+                            if ($object->exists()) {
+                                $object instanceof SiteTree
+                                    ? $object->publishRecursive()
+                                    : $object->doPublish();
+                            }
+                        }
+
+                        $unpublishedCount++;
+                    }
+
+                    $set->State = ChangeSet::STATE_REVERTED;
+                    $set->write();
+                }
             }
         }
 
-        // Logging & feedback
-        $message = "Campaigns published: {$totalPublished} | Campaign objects unpublished: {$totalUnpublished}";
+        $message = "ScheduledPublishDateTask: {$publishCount} campaigns published | {$unpublishedCount} campaign objects unpublished";
 
         $logger = Injector::inst()->get(LoggerInterface::class);
         $logger->info($message);
 
-        echo $message . PHP_EOL;
+        echo $message;
     }
 
     /**
