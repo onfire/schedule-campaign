@@ -26,25 +26,11 @@ class ScheduledPublishDateTask extends BuildTask
             $end   = $set->EndPublishDate ? strtotime($set->EndPublishDate) : null;
 
             // Handle sets that can be published (open or reverted)
-            if (($set->State === ChangeSet::STATE_OPEN || $set->State === ChangeSet::STATE_REVERTED) && $start) {
+            if ($set->State === ChangeSet::STATE_OPEN && $start) {
                 if ($this->isInPublishWindow($start, $end, $now)) {
-                    $setItems = ChangeSetItem::get()->filter(['ChangeSetID' => $set->ID]);
-
-                    foreach ($setItems as $setItem) {
-                        $object = $setItem->Object();
-                        if (!$object) continue;
-
-                        if ($object instanceof SiteTree) {
-                            $object->publishRecursive();
-                        } else {
-                            $object->doPublish();
-                        }
-
+                        $set->sync();
+                        $set->publish();
                         $publishCount++;
-                    }
-
-                    $set->State = ChangeSet::STATE_PUBLISHED;
-                    $set->write();
                 }
             }
             // Handle sets that need to be reverted (already published & end date passed)
@@ -54,7 +40,7 @@ class ScheduledPublishDateTask extends BuildTask
 
                     foreach ($setItems as $setItem) {
                         $object = $setItem->Object();
-                        if (!$object) continue;
+                        if (!$object || !$setItem->isVersioned()) continue;
 
                         if (!$setItem->VersionBefore) {
                             $object->doUnpublish();

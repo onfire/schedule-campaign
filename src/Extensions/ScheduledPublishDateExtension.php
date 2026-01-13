@@ -27,6 +27,6 @@ class ScheduledPublishDateExtension extends DataExtension
         $fields->addFieldToTab('Root.Main', DateField::create(
             'EndPublishDate',
             'End Publish Date'
-        ));
+        )->setDescription('Warning! If an end date is set, any changes made between the start and end date will be reverted on campaign end.'));
     }
 }
